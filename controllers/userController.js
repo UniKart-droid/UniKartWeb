@@ -10,16 +10,16 @@ import crypto from "crypto";
 const getTransporter = () => {
   return nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: 465, // SSL Port
-    secure: true, 
+    port: 587, // Switch to 587 for better cloud compatibility
+    secure: false, // Must be false for port 587
     auth: {
       user: process.env.EMAIL,
       pass: process.env.EMAIL_PASS, // 16-digit App Password
     },
-    // Fixes for Render deployment to prevent ETIMEDOUT
-    connectionTimeout: 10000, 
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+    // Increased timeouts to prevent ETIMEDOUT on Render
+    connectionTimeout: 20000, 
+    greetingTimeout: 20000,
+    socketTimeout: 25000,
     tls: {
       rejectUnauthorized: false,
       minVersion: 'TLSv1.2'
@@ -163,10 +163,11 @@ export const signupUser = async (req, res) => {
       updateFields.id_card = req.file.path.replace(/\\/g, "/");
     }
 
+    // Fixed Mongoose warning here
     const newUser = await User.findOneAndUpdate(
       { email }, 
       { $set: updateFields, $unset: { otp: 1, otpExpire: 1 } }, 
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!newUser) return res.status(400).json({ message: "Signup failed." });
@@ -326,7 +327,7 @@ export const updateUser = async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       { name, email },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).select("-password");
 
     if (!updatedUser) return res.status(404).json({ message: "User not found" });
