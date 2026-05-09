@@ -9,19 +9,20 @@ import crypto from "crypto";
 // ==========================
 const getTransporter = () => {
   return nodemailer.createTransport({
-    service: "gmail",
     host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+    port: 465, // SSL Port
+    secure: true, 
     auth: {
       user: process.env.EMAIL,
       pass: process.env.EMAIL_PASS, // 16-digit App Password
     },
-    // Adding timeout to prevent "Pending" state indefinitely
+    // Fixes for Render deployment to prevent ETIMEDOUT
     connectionTimeout: 10000, 
     greetingTimeout: 10000,
+    socketTimeout: 15000,
     tls: {
-      rejectUnauthorized: false
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1.2'
     }
   });
 };
@@ -42,19 +43,18 @@ export const sendOtp = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpire = Date.now() + 5 * 60 * 1000;
 
-    // Database update
+    // Database update - Warning fixed: returnDocument used instead of new
     await User.findOneAndUpdate(
       { email },
       { otp, otpExpire, name: existingUser?.name || "Pending User" },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
     const transporter = getTransporter();
 
-    // Verify connection before sending to avoid hang
+    // Verify connection before sending
     await transporter.verify();
 
-    // Use await to ensure email is sent before responding
     await transporter.sendMail({
       from: `"UniKart Verification" <${process.env.EMAIL}>`,
       to: email,
@@ -70,12 +70,10 @@ export const sendOtp = async (req, res) => {
       `,
     });
 
-    // Explicitly returning success response
     return res.status(200).json({ success: true, message: "OTP sent to your email" });
 
   } catch (error) {
     console.error("❌ SEND OTP ERROR:", error);
-    // Always respond even in case of error to stop the 'pending' state
     return res.status(500).json({ 
       success: false, 
       message: "Error sending OTP. Please check your email credentials.", 
@@ -136,7 +134,6 @@ export const signupUser = async (req, res) => {
 
     const userWithOtp = await User.findOne({ email });
     
-    // Strict OTP Validation
     if (!userWithOtp || userWithOtp.otp !== otp || userWithOtp.otpExpire < Date.now()) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
@@ -293,7 +290,6 @@ export const resetPassword = async (req, res) => {
 // ==========================================
 //  ADMIN: DASHBOARD CONTROLLERS
 // ==========================================
-
 export const getApprovedStudents = async (req, res) => {
   try {
     const students = await User.find({ role: "student", isApproved: true }).select("-password");
