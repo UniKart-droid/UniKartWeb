@@ -10,19 +10,22 @@ import crypto from "crypto";
 const getTransporter = () => {
   return nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: 587, // Switch to 587 for better cloud compatibility
-    secure: false, // Must be false for port 587
+    port: 587,
+    secure: false, // TLS ke liye false zaroori hai
+    pool: true,    // Connection pooling help karti hai cloud environments mein
     auth: {
       user: process.env.EMAIL,
       pass: process.env.EMAIL_PASS, // 16-digit App Password
     },
-    // Increased timeouts to prevent ETIMEDOUT on Render
-    connectionTimeout: 20000, 
-    greetingTimeout: 20000,
-    socketTimeout: 25000,
+    // Extended timeouts for Render's cold starts/network lag
+    connectionTimeout: 30000, 
+    greetingTimeout: 30000,
+    socketTimeout: 40000,
     tls: {
       rejectUnauthorized: false,
-      minVersion: 'TLSv1.2'
+      minVersion: 'TLSv1.2',
+      // Forced IPv4 resolve workaround
+      servername: 'smtp.gmail.com'
     }
   });
 };
@@ -43,7 +46,7 @@ export const sendOtp = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpire = Date.now() + 5 * 60 * 1000;
 
-    // Database update - Warning fixed: returnDocument used instead of new
+    // Database update
     await User.findOneAndUpdate(
       { email },
       { otp, otpExpire, name: existingUser?.name || "Pending User" },
@@ -52,7 +55,7 @@ export const sendOtp = async (req, res) => {
 
     const transporter = getTransporter();
 
-    // Verify connection before sending
+    // Verify connection
     await transporter.verify();
 
     await transporter.sendMail({
@@ -76,7 +79,7 @@ export const sendOtp = async (req, res) => {
     console.error("❌ SEND OTP ERROR:", error);
     return res.status(500).json({ 
       success: false, 
-      message: "Error sending OTP. Please check your email credentials.", 
+      message: "Error sending OTP. Please check your network and credentials.", 
       error: error.message 
     });
   }
@@ -163,7 +166,6 @@ export const signupUser = async (req, res) => {
       updateFields.id_card = req.file.path.replace(/\\/g, "/");
     }
 
-    // Fixed Mongoose warning here
     const newUser = await User.findOneAndUpdate(
       { email }, 
       { $set: updateFields, $unset: { otp: 1, otpExpire: 1 } }, 
