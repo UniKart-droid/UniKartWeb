@@ -8,13 +8,18 @@ import crypto from "crypto";
 //  HELPER: GET TRANSPORTER
 // ==========================
 const getTransporter = () => {
-  // Gmail ke liye 'service' use karna zyada reliable hota hai Render par
   return nodemailer.createTransport({
-    service: "gmail", 
+    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
     auth: {
       user: process.env.EMAIL,
-      pass: process.env.EMAIL_PASS, // Ensure this is a 16-digit App Password
+      pass: process.env.EMAIL_PASS, // 16-digit App Password
     },
+    // Adding timeout to prevent "Pending" state indefinitely
+    connectionTimeout: 10000, 
+    greetingTimeout: 10000,
     tls: {
       rejectUnauthorized: false
     }
@@ -37,7 +42,7 @@ export const sendOtp = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpire = Date.now() + 5 * 60 * 1000;
 
-    // Upsert ensures record exists before sending email
+    // Database update
     await User.findOneAndUpdate(
       { email },
       { otp, otpExpire, name: existingUser?.name || "Pending User" },
@@ -46,6 +51,10 @@ export const sendOtp = async (req, res) => {
 
     const transporter = getTransporter();
 
+    // Verify connection before sending to avoid hang
+    await transporter.verify();
+
+    // Use await to ensure email is sent before responding
     await transporter.sendMail({
       from: `"UniKart Verification" <${process.env.EMAIL}>`,
       to: email,
@@ -61,10 +70,17 @@ export const sendOtp = async (req, res) => {
       `,
     });
 
-    res.status(200).json({ success: true, message: "OTP sent to your email" });
+    // Explicitly returning success response
+    return res.status(200).json({ success: true, message: "OTP sent to your email" });
+
   } catch (error) {
     console.error("❌ SEND OTP ERROR:", error);
-    res.status(500).json({ success: false, message: "Error sending OTP", error: error.message });
+    // Always respond even in case of error to stop the 'pending' state
+    return res.status(500).json({ 
+      success: false, 
+      message: "Error sending OTP. Please check your email credentials.", 
+      error: error.message 
+    });
   }
 };
 
@@ -119,6 +135,8 @@ export const signupUser = async (req, res) => {
     }
 
     const userWithOtp = await User.findOne({ email });
+    
+    // Strict OTP Validation
     if (!userWithOtp || userWithOtp.otp !== otp || userWithOtp.otpExpire < Date.now()) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
@@ -137,7 +155,6 @@ export const signupUser = async (req, res) => {
       isApproved: false, 
     };
 
-    // Role specific logic
     if (sel_role === "teacher") {
       if (!teacher_id) return res.status(400).json({ message: "Teacher ID is required" });
       updateFields.teacher_id = teacher_id;
@@ -149,7 +166,6 @@ export const signupUser = async (req, res) => {
       updateFields.id_card = req.file.path.replace(/\\/g, "/");
     }
 
-    // Update user and CLEAR OTP fields
     const newUser = await User.findOneAndUpdate(
       { email }, 
       { $set: updateFields, $unset: { otp: 1, otpExpire: 1 } }, 
@@ -158,7 +174,6 @@ export const signupUser = async (req, res) => {
 
     if (!newUser) return res.status(400).json({ message: "Signup failed." });
 
-    // Send async welcome email
     sendWelcomeEmail(newUser.email, newUser.name);
 
     return res.status(201).json({
@@ -197,13 +212,13 @@ export const loginUser = async (req, res) => {
       { expiresIn: "1d" }
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       token,
       user: { id: user._id, name: user.name, role: user.role, isApproved: user.isApproved }
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -245,10 +260,10 @@ export const forgotPassword = async (req, res) => {
       `,
     });
 
-    res.status(200).json({ message: "Reset link sent to email" });
+    return res.status(200).json({ message: "Reset link sent to email" });
   } catch (error) {
     console.error("❌ FORGOT PASSWORD ERROR:", error);
-    res.status(500).json({ message: "Failed to send email. Check connection." });
+    return res.status(500).json({ message: "Failed to send email. Check connection." });
   }
 };
 
@@ -269,9 +284,9 @@ export const resetPassword = async (req, res) => {
     user.resetPasswordExpire = undefined;
     await user.save();
 
-    res.status(200).json({ message: "Password updated successfully" });
+    return res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -282,9 +297,9 @@ export const resetPassword = async (req, res) => {
 export const getApprovedStudents = async (req, res) => {
   try {
     const students = await User.find({ role: "student", isApproved: true }).select("-password");
-    res.status(200).json({ success: true, students });
+    return res.status(200).json({ success: true, students });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching students", error: error.message });
+    return res.status(500).json({ message: "Error fetching students", error: error.message });
   }
 };
 
@@ -293,9 +308,9 @@ export const rejectUser = async (req, res) => {
     const { id } = req.params;
     const user = await User.findByIdAndDelete(id);
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.status(200).json({ success: true, message: "User removed successfully" });
+    return res.status(200).json({ success: true, message: "User removed successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Error rejecting user", error: error.message });
+    return res.status(500).json({ message: "Error rejecting user", error: error.message });
   }
 };
 
@@ -303,9 +318,9 @@ export const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select("-password -otp");
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.status(200).json({ success: true, user });
+    return res.status(200).json({ success: true, user });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching user", error: error.message });
+    return res.status(500).json({ message: "Error fetching user", error: error.message });
   }
 };
 
@@ -319,8 +334,8 @@ export const updateUser = async (req, res) => {
     ).select("-password");
 
     if (!updatedUser) return res.status(404).json({ message: "User not found" });
-    res.status(200).json({ success: true, message: "User updated successfully", user: updatedUser });
+    return res.status(200).json({ success: true, message: "User updated successfully", user: updatedUser });
   } catch (error) {
-    res.status(500).json({ message: "Error updating user", error: error.message });
+    return res.status(500).json({ message: "Error updating user", error: error.message });
   }
 };
