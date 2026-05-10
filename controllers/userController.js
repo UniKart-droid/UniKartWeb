@@ -10,8 +10,8 @@ import crypto from "crypto";
 const getTransporter = () => {
   return nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: 465, // Port 465 (SSL) is more reliable on cloud platforms than 587
-    secure: true, 
+    port: 587, // Port 465 (SSL) is more reliable on cloud platforms than 587
+    secure: false, 
     auth: {
       user: process.env.EMAIL,
       pass: process.env.EMAIL_PASS, // Your 16-digit App Password (no spaces)
@@ -19,8 +19,10 @@ const getTransporter = () => {
     // Adding performance & security settings
     tls: {
       rejectUnauthorized: false,
+      minVersion: "TLSv1.2"
     },
-    connectionTimeout: 10000, // 10 seconds timeout
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
   });
 };
 
