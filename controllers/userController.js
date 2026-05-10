@@ -63,7 +63,7 @@ export const sendOtp = async (req, res) => {
       },
       {
         upsert: true,
-        returnDocument: "after",
+        new: true,
         setDefaultsOnInsert: true,
       }
     );
@@ -293,7 +293,7 @@ export const signupUser = async (req, res) => {
       },
 
       {
-        returnDocument: "after",
+        new: true,
       }
     );
 
@@ -471,6 +471,7 @@ export const forgotPassword = async (req, res) => {
 
     return res.status(500).json({
       message: "Failed to send email. Check connection.",
+      error: error.message,
     });
   }
 };
@@ -510,6 +511,7 @@ export const resetPassword = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -596,7 +598,7 @@ export const updateUser = async (req, res) => {
       req.params.id,
       { name, email },
       {
-        returnDocument: "after",
+        new: true,
         runValidators: true,
       }
     ).select("-password");
