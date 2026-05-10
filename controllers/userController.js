@@ -7,26 +7,19 @@ import crypto from "crypto";
 // ==========================
 //  HELPER: GET TRANSPORTER
 // ==========================
+// ==========================
+//  HELPER: GET TRANSPORTER
+// ==========================
 const getTransporter = () => {
   return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+    service: "gmail",
 
     auth: {
       user: process.env.EMAIL,
       pass: process.env.EMAIL_PASS,
     },
-
-    tls: {
-      rejectUnauthorized: false,
-    },
-
-    connectionTimeout: 30000,
-    greetingTimeout: 30000,
-    socketTimeout: 30000,
   });
-};
+};;
 
 // ==========================
 //  SEND OTP CONTROLLER
