@@ -8,12 +8,13 @@ import crypto from "crypto";
    HELPER: GET TRANSPORTER
 ========================== */
 const getTransporter = () => {
-  // Render aur Gmail ke liye 'service' use karna sabse best hai
   return nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false, // TLS - Render free plan pe port 465 block hota hai, 587 kaam karta hai
     auth: {
       user: process.env.EMAIL,
-      pass: process.env.EMAIL_PASS, // Ensure karein ye 16-digit App Password ho
+      pass: process.env.EMAIL_PASS, // 16-digit Gmail App Password
     },
   });
 };
