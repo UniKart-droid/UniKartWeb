@@ -26,9 +26,9 @@ const getTransporter = () => {
       rejectUnauthorized: false,
     },
 
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 20000,
   });
 };
 
@@ -44,15 +44,18 @@ export const sendOtp = async (req, res) => {
     if (!email) {
 
       return res.status(400).json({
+        success: false,
         message: "Email is required",
       });
     }
 
+    /* CHECK EXISTING USER */
     const existingUser = await User.findOne({ email });
 
     if (existingUser && existingUser.password) {
 
       return res.status(400).json({
+        success: false,
         message: "User already exists with this email",
       });
     }
@@ -68,6 +71,7 @@ export const sendOtp = async (req, res) => {
 
     /* SAVE OTP */
     await User.findOneAndUpdate(
+
       { email },
 
       {
@@ -80,15 +84,19 @@ export const sendOtp = async (req, res) => {
 
       {
         upsert: true,
-        new: true,
+        returnDocument: "after",
         setDefaultsOnInsert: true,
       }
     );
 
+    /* CREATE TRANSPORTER */
     const transporter =
       getTransporter();
 
-    /* SEND OTP EMAIL */
+    /* VERIFY SMTP */
+    await transporter.verify();
+
+    /* SEND EMAIL */
     await transporter.sendMail({
 
       from: `"UniKart Verification" <${process.env.EMAIL}>`,
@@ -126,7 +134,9 @@ export const sendOtp = async (req, res) => {
     });
 
     return res.status(200).json({
+
       success: true,
+
       message:
         "OTP sent to your email",
     });
@@ -139,9 +149,12 @@ export const sendOtp = async (req, res) => {
     );
 
     return res.status(500).json({
+
       success: false,
+
       message:
         "Server failed to send OTP. Please try again.",
+
       error: error.message,
     });
   }
@@ -264,6 +277,7 @@ export const signupUser = async (
     ) {
 
       return res.status(400).json({
+        success: false,
         message:
           "All required fields must be filled",
       });
@@ -279,6 +293,7 @@ export const signupUser = async (
     ) {
 
       return res.status(400).json({
+        success: false,
         message:
           "Invalid or expired OTP",
       });
@@ -289,6 +304,7 @@ export const signupUser = async (
     ) {
 
       return res.status(400).json({
+        success: false,
         message:
           "Passwords do not match",
       });
@@ -298,10 +314,14 @@ export const signupUser = async (
       await bcrypt.hash(password, 10);
 
     const updateFields = {
+
       name,
       email,
+
       password: hashedPassword,
+
       role: sel_role,
+
       isApproved: false,
     };
 
@@ -311,6 +331,7 @@ export const signupUser = async (
       if (!teacher_id) {
 
         return res.status(400).json({
+          success: false,
           message:
             "Teacher ID is required",
         });
@@ -318,7 +339,6 @@ export const signupUser = async (
 
       updateFields.teacher_id =
         teacher_id;
-
     }
 
     /* ADMIN */
@@ -329,6 +349,7 @@ export const signupUser = async (
       if (!admin_id) {
 
         return res.status(400).json({
+          success: false,
           message:
             "Admin ID is required",
         });
@@ -336,7 +357,6 @@ export const signupUser = async (
 
       updateFields.admin_id =
         admin_id;
-
     }
 
     /* STUDENT */
@@ -347,6 +367,7 @@ export const signupUser = async (
       if (!req.file) {
 
         return res.status(400).json({
+          success: false,
           message:
             "ID Card is required",
         });
@@ -375,13 +396,14 @@ export const signupUser = async (
         },
 
         {
-          new: true,
+          returnDocument: "after",
         }
       );
 
     if (!newUser) {
 
       return res.status(400).json({
+        success: false,
         message: "Signup failed.",
       });
     }
@@ -416,7 +438,11 @@ export const signupUser = async (
     );
 
     return res.status(500).json({
+
+      success: false,
+
       message: "Server error",
+
       error: error.message,
     });
   }
@@ -440,6 +466,7 @@ export const loginUser = async (
     if (!email || !password) {
 
       return res.status(400).json({
+        success: false,
         message:
           "Email and password required",
       });
@@ -451,6 +478,7 @@ export const loginUser = async (
     if (!user) {
 
       return res.status(400).json({
+        success: false,
         message: "User not found",
       });
     }
@@ -464,6 +492,7 @@ export const loginUser = async (
     if (!isMatch) {
 
       return res.status(400).json({
+        success: false,
         message:
           "Invalid credentials",
       });
@@ -472,6 +501,7 @@ export const loginUser = async (
     if (!user.isApproved) {
 
       return res.status(403).json({
+        success: false,
         message:
           "Your account is pending admin approval",
       });
@@ -510,7 +540,11 @@ export const loginUser = async (
   } catch (error) {
 
     return res.status(500).json({
+
+      success: false,
+
       message: "Server error",
+
       error: error.message,
     });
   }
@@ -534,6 +568,7 @@ export const forgotPassword = async (
     if (!user) {
 
       return res.status(404).json({
+        success: false,
         message: "User not found",
       });
     }
@@ -603,6 +638,9 @@ export const forgotPassword = async (
     });
 
     return res.status(200).json({
+
+      success: true,
+
       message:
         "Reset link sent to email",
     });
@@ -615,8 +653,12 @@ export const forgotPassword = async (
     );
 
     return res.status(500).json({
+
+      success: false,
+
       message:
         "Failed to send email. Check connection.",
+
       error: error.message,
     });
   }
@@ -650,6 +692,7 @@ export const resetPassword = async (
     if (!user) {
 
       return res.status(400).json({
+        success: false,
         message:
           "Invalid or expired token",
       });
@@ -670,6 +713,9 @@ export const resetPassword = async (
     await user.save();
 
     return res.status(200).json({
+
+      success: true,
+
       message:
         "Password updated successfully",
     });
@@ -677,7 +723,11 @@ export const resetPassword = async (
   } catch (error) {
 
     return res.status(500).json({
+
+      success: false,
+
       message: "Server error",
+
       error: error.message,
     });
   }
@@ -702,15 +752,21 @@ export const getApprovedStudents =
         }).select("-password");
 
       return res.status(200).json({
+
         success: true,
+
         students,
       });
 
     } catch (error) {
 
       return res.status(500).json({
+
+        success: false,
+
         message:
           "Error fetching students",
+
         error: error.message,
       });
     }
@@ -731,12 +787,15 @@ export const rejectUser = async (
     if (!user) {
 
       return res.status(404).json({
+        success: false,
         message: "User not found",
       });
     }
 
     return res.status(200).json({
+
       success: true,
+
       message:
         "User removed successfully",
     });
@@ -744,8 +803,12 @@ export const rejectUser = async (
   } catch (error) {
 
     return res.status(500).json({
+
+      success: false,
+
       message:
         "Error rejecting user",
+
       error: error.message,
     });
   }
@@ -766,20 +829,27 @@ export const getUserById = async (
     if (!user) {
 
       return res.status(404).json({
+        success: false,
         message: "User not found",
       });
     }
 
     return res.status(200).json({
+
       success: true,
+
       user,
     });
 
   } catch (error) {
 
     return res.status(500).json({
+
+      success: false,
+
       message:
         "Error fetching user",
+
       error: error.message,
     });
   }
@@ -808,7 +878,7 @@ export const updateUser = async (
         },
 
         {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         }
       ).select("-password");
@@ -816,6 +886,7 @@ export const updateUser = async (
     if (!updatedUser) {
 
       return res.status(404).json({
+        success: false,
         message: "User not found",
       });
     }
@@ -833,8 +904,12 @@ export const updateUser = async (
   } catch (error) {
 
     return res.status(500).json({
+
+      success: false,
+
       message:
         "Error updating user",
+
       error: error.message,
     });
   }
