@@ -1,21 +1,23 @@
 import User from "../model/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import crypto from "crypto";
+import { Resend } from "resend";
 
 /* ==========================
-   HELPER: GET TRANSPORTER
+   HELPER: RESEND CLIENT
 ========================== */
-const getTransporter = () => {
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // TLS - Render free plan pe port 465 block hota hai, 587 kaam karta hai
-    auth: {
-      user: process.env.EMAIL,
-      pass: process.env.EMAIL_PASS, // 16-digit Gmail App Password
-    },
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+/* ==========================
+   HELPER: SEND EMAIL
+========================== */
+const sendEmail = async ({ to, subject, html }) => {
+  await resend.emails.send({
+    from: "UniKart <onboarding@resend.dev>",
+    to,
+    subject,
+    html,
   });
 };
 
@@ -62,12 +64,8 @@ export const sendOtp = async (req, res) => {
       }
     );
 
-    /* CREATE TRANSPORTER */
-    const transporter = getTransporter();
-
     /* SEND EMAIL */
-    await transporter.sendMail({
-      from: `"UniKart Verification" <${process.env.EMAIL}>`,
+    await sendEmail({
       to: email,
       subject: "Your UniKart Verification Code",
       html: `
@@ -89,10 +87,8 @@ export const sendOtp = async (req, res) => {
   } catch (error) {
     console.error("❌ SEND OTP ERROR DETAILS:", error);
 
-    // Specific error messages for debugging
     let userMessage = "Server failed to send OTP. Please try again.";
-    if (error.code === 'EAUTH') userMessage = "Email Authentication Failed. Check App Password.";
-    if (error.code === 'ETIMEDOUT') userMessage = "Connection Timeout. SMTP Port is blocked.";
+    if (error.code === "EAUTH") userMessage = "Email Authentication Failed. Check API Key.";
 
     return res.status(500).json({
       success: false,
@@ -107,10 +103,7 @@ export const sendOtp = async (req, res) => {
 ========================== */
 const sendWelcomeEmail = async (email, name) => {
   try {
-    const transporter = getTransporter();
-
-    await transporter.sendMail({
-      from: `"UniKart Team" <${process.env.EMAIL}>`,
+    await sendEmail({
       to: email,
       subject: "Welcome to UniKart | Your Account is Ready",
       html: `
@@ -311,10 +304,7 @@ export const forgotPassword = async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
-    const transporter = getTransporter();
-
-    await transporter.sendMail({
-      from: `"UniKart Team" <${process.env.EMAIL}>`,
+    await sendEmail({
       to: user.email,
       subject: "Reset Your UniKart Password",
       html: `
