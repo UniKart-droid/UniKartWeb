@@ -20,9 +20,16 @@ import Message from "./model/Message.js";
 const app = express();
 
 /* ---------------------------
-    MIDDLEWARE
+    MIDDLEWARE (Updated for Vercel & Render)
 ---------------------------- */
-app.use(cors());
+// Aapka main CORS fix yahan hai
+app.use(cors({
+  origin: "https://unikart-frontend.vercel.app", 
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -62,8 +69,8 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "https://unikart-frontend.vercel.app", 
-    
     methods: ["GET", "POST"],
+    credentials: true
   },
 });
 
@@ -130,7 +137,7 @@ io.on("connection", (socket) => {
       });
 
     } catch (error) {
-      // Logic unchanged, only logs removed
+      // Logic unchanged
     }
   });
 
@@ -149,7 +156,6 @@ const start = async () => {
     await connectDB();
     
     server.listen(PORT, () => {
-      // Server starting message can be kept for basic monitoring
       console.log(` Server running on port: ${PORT}`);
     });
   } catch (error) {
