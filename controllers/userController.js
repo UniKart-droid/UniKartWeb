@@ -4,31 +4,45 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
-// ==========================
-//  HELPER: GET TRANSPORTER
-// ==========================
-// ==========================
-//  HELPER: GET TRANSPORTER
-// ==========================
+/* ==========================
+   HELPER: GET TRANSPORTER
+========================== */
 const getTransporter = () => {
+
   return nodemailer.createTransport({
-    service: "gmail",
+
+    host: "smtp.gmail.com",
+
+    port: 587,
+
+    secure: false,
 
     auth: {
       user: process.env.EMAIL,
       pass: process.env.EMAIL_PASS,
     },
-  });
-};;
 
-// ==========================
-//  SEND OTP CONTROLLER
-// ==========================
+    tls: {
+      rejectUnauthorized: false,
+    },
+
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
+  });
+};
+
+/* ==========================
+   SEND OTP CONTROLLER
+========================== */
 export const sendOtp = async (req, res) => {
+
   try {
+
     const { email } = req.body;
 
     if (!email) {
+
       return res.status(400).json({
         message: "Email is required",
       });
@@ -37,23 +51,33 @@ export const sendOtp = async (req, res) => {
     const existingUser = await User.findOne({ email });
 
     if (existingUser && existingUser.password) {
+
       return res.status(400).json({
         message: "User already exists with this email",
       });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    /* GENERATE OTP */
+    const otp =
+      Math.floor(
+        100000 + Math.random() * 900000
+      ).toString();
 
-    const otpExpire = Date.now() + 5 * 60 * 1000;
+    const otpExpire =
+      Date.now() + 5 * 60 * 1000;
 
-    // Save OTP
+    /* SAVE OTP */
     await User.findOneAndUpdate(
       { email },
+
       {
         otp,
         otpExpire,
-        name: existingUser?.name || "Pending User",
+        name:
+          existingUser?.name ||
+          "Pending User",
       },
+
       {
         upsert: true,
         new: true,
@@ -61,16 +85,18 @@ export const sendOtp = async (req, res) => {
       }
     );
 
-    const transporter = getTransporter();
+    const transporter =
+      getTransporter();
 
-    // Verify SMTP connection
-    await transporter.verify();
-
-    // Send OTP mail
+    /* SEND OTP EMAIL */
     await transporter.sendMail({
+
       from: `"UniKart Verification" <${process.env.EMAIL}>`,
+
       to: email,
-      subject: "Your UniKart Verification Code",
+
+      subject:
+        "Your UniKart Verification Code",
 
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
@@ -101,31 +127,47 @@ export const sendOtp = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "OTP sent to your email",
+      message:
+        "OTP sent to your email",
     });
 
   } catch (error) {
-    console.error("❌ SEND OTP ERROR DETAILS:", error);
+
+    console.error(
+      "❌ SEND OTP ERROR DETAILS:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Server failed to send OTP. Please try again.",
+      message:
+        "Server failed to send OTP. Please try again.",
       error: error.message,
     });
   }
 };
 
-// ==========================
-//  WELCOME EMAIL FUNCTION
-// ==========================
-const sendWelcomeEmail = async (email, name) => {
+/* ==========================
+   WELCOME EMAIL FUNCTION
+========================== */
+const sendWelcomeEmail = async (
+  email,
+  name
+) => {
+
   try {
-    const transporter = getTransporter();
+
+    const transporter =
+      getTransporter();
 
     await transporter.sendMail({
+
       from: `"UniKart Team" <${process.env.EMAIL}>`,
+
       to: email,
-      subject: "Welcome to UniKart | Your Account is Ready",
+
+      subject:
+        "Welcome to UniKart | Your Account is Ready",
 
       html: `
         <div style="font-family: Arial, sans-serif; background-color:#f4f4f4; padding:20px;">
@@ -151,7 +193,7 @@ const sendWelcomeEmail = async (email, name) => {
               </h2>
 
               <p>
-                Welcome to <b>UniKart</b>! We're excited to have you on board.
+                Welcome to <b>UniKart</b>!
               </p>
 
               <p>
@@ -183,15 +225,24 @@ const sendWelcomeEmail = async (email, name) => {
     });
 
   } catch (error) {
-    console.log("⚠️ Welcome Email failed:", error.message);
+
+    console.log(
+      "⚠️ Welcome Email failed:",
+      error.message
+    );
   }
 };
 
-// ==========================
-//  SIGNUP CONTROLLER
-// ==========================
-export const signupUser = async (req, res) => {
+/* ==========================
+   SIGNUP CONTROLLER
+========================== */
+export const signupUser = async (
+  req,
+  res
+) => {
+
   try {
+
     const {
       name,
       email,
@@ -211,30 +262,40 @@ export const signupUser = async (req, res) => {
       !sel_role ||
       !otp
     ) {
+
       return res.status(400).json({
-        message: "All required fields must be filled",
+        message:
+          "All required fields must be filled",
       });
     }
 
-    const userWithOtp = await User.findOne({ email });
+    const userWithOtp =
+      await User.findOne({ email });
 
     if (
       !userWithOtp ||
       userWithOtp.otp !== otp ||
       userWithOtp.otpExpire < Date.now()
     ) {
+
       return res.status(400).json({
-        message: "Invalid or expired OTP",
+        message:
+          "Invalid or expired OTP",
       });
     }
 
-    if (password !== confirm_password) {
+    if (
+      password !== confirm_password
+    ) {
+
       return res.status(400).json({
-        message: "Passwords do not match",
+        message:
+          "Passwords do not match",
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword =
+      await bcrypt.hash(password, 10);
 
     const updateFields = {
       name,
@@ -244,74 +305,115 @@ export const signupUser = async (req, res) => {
       isApproved: false,
     };
 
+    /* TEACHER */
     if (sel_role === "teacher") {
+
       if (!teacher_id) {
+
         return res.status(400).json({
-          message: "Teacher ID is required",
+          message:
+            "Teacher ID is required",
         });
       }
 
-      updateFields.teacher_id = teacher_id;
+      updateFields.teacher_id =
+        teacher_id;
 
-    } else if (sel_role === "admin") {
-
-      if (!admin_id) {
-        return res.status(400).json({
-          message: "Admin ID is required",
-        });
-      }
-
-      updateFields.admin_id = admin_id;
-
-    } else if (sel_role === "student") {
-
-      if (!req.file) {
-        return res.status(400).json({
-          message: "ID Card is required",
-        });
-      }
-
-      updateFields.id_card = req.file.path.replace(/\\/g, "/");
     }
 
-    const newUser = await User.findOneAndUpdate(
-      { email },
+    /* ADMIN */
+    else if (
+      sel_role === "admin"
+    ) {
 
-      {
-        $set: updateFields,
-        $unset: {
-          otp: 1,
-          otpExpire: 1,
-        },
-      },
+      if (!admin_id) {
 
-      {
-        new: true,
+        return res.status(400).json({
+          message:
+            "Admin ID is required",
+        });
       }
-    );
+
+      updateFields.admin_id =
+        admin_id;
+
+    }
+
+    /* STUDENT */
+    else if (
+      sel_role === "student"
+    ) {
+
+      if (!req.file) {
+
+        return res.status(400).json({
+          message:
+            "ID Card is required",
+        });
+      }
+
+      updateFields.id_card =
+        req.file.path.replace(
+          /\\/g,
+          "/"
+        );
+    }
+
+    /* UPDATE USER */
+    const newUser =
+      await User.findOneAndUpdate(
+
+        { email },
+
+        {
+          $set: updateFields,
+
+          $unset: {
+            otp: 1,
+            otpExpire: 1,
+          },
+        },
+
+        {
+          new: true,
+        }
+      );
 
     if (!newUser) {
+
       return res.status(400).json({
         message: "Signup failed.",
       });
     }
 
-    sendWelcomeEmail(newUser.email, newUser.name);
+    /* SEND WELCOME EMAIL */
+    sendWelcomeEmail(
+      newUser.email,
+      newUser.name
+    );
 
     return res.status(201).json({
+
       success: true,
-      message: "Signup successful. Wait for admin approval",
+
+      message:
+        "Signup successful. Wait for admin approval",
 
       user: {
         id: newUser._id,
         name: newUser.name,
         role: newUser.role,
-        isApproved: newUser.isApproved,
+        isApproved:
+          newUser.isApproved,
       },
     });
 
   } catch (error) {
-    console.error("🔥 SIGNUP ERROR:", error);
+
+    console.error(
+      "🔥 SIGNUP ERROR:",
+      error
+    );
 
     return res.status(500).json({
       message: "Server error",
@@ -320,48 +422,70 @@ export const signupUser = async (req, res) => {
   }
 };
 
-// ==========================
-//  LOGIN CONTROLLER
-// ==========================
-export const loginUser = async (req, res) => {
+/* ==========================
+   LOGIN CONTROLLER
+========================== */
+export const loginUser = async (
+  req,
+  res
+) => {
+
   try {
-    const { email, password } = req.body;
+
+    const {
+      email,
+      password,
+    } = req.body;
 
     if (!email || !password) {
+
       return res.status(400).json({
-        message: "Email and password required",
+        message:
+          "Email and password required",
       });
     }
 
-    const user = await User.findOne({ email });
+    const user =
+      await User.findOne({ email });
 
     if (!user) {
+
       return res.status(400).json({
         message: "User not found",
       });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch =
+      await bcrypt.compare(
+        password,
+        user.password
+      );
 
     if (!isMatch) {
+
       return res.status(400).json({
-        message: "Invalid credentials",
+        message:
+          "Invalid credentials",
       });
     }
 
     if (!user.isApproved) {
+
       return res.status(403).json({
-        message: "Your account is pending admin approval",
+        message:
+          "Your account is pending admin approval",
       });
     }
 
     const token = jwt.sign(
+
       {
         id: user._id,
         role: user.role,
       },
 
-      process.env.JWT_SECRET || "fallback_secret",
+      process.env.JWT_SECRET ||
+        "fallback_secret",
 
       {
         expiresIn: "1d",
@@ -369,18 +493,22 @@ export const loginUser = async (req, res) => {
     );
 
     return res.status(200).json({
+
       success: true,
+
       token,
 
       user: {
         id: user._id,
         name: user.name,
         role: user.role,
-        isApproved: user.isApproved,
+        isApproved:
+          user.isApproved,
       },
     });
 
   } catch (error) {
+
     return res.status(500).json({
       message: "Server error",
       error: error.message,
@@ -388,40 +516,59 @@ export const loginUser = async (req, res) => {
   }
 };
 
-// ==========================
-//  FORGOT PASSWORD
-// ==========================
-export const forgotPassword = async (req, res) => {
+/* ==========================
+   FORGOT PASSWORD
+========================== */
+export const forgotPassword = async (
+  req,
+  res
+) => {
+
   try {
+
     const { email } = req.body;
 
-    const user = await User.findOne({ email });
+    const user =
+      await User.findOne({ email });
 
     if (!user) {
+
       return res.status(404).json({
         message: "User not found",
       });
     }
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetToken =
+      crypto.randomBytes(32)
+        .toString("hex");
 
-    user.resetPasswordToken = resetToken;
+    user.resetPasswordToken =
+      resetToken;
 
-    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+    user.resetPasswordExpire =
+      Date.now() +
+      10 * 60 * 1000;
 
     await user.save();
 
     const frontendUrl =
-      process.env.FRONTEND_URL || "http://localhost:5173";
+      process.env.FRONTEND_URL ||
+      "http://localhost:5173";
 
-    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+    const resetUrl =
+      `${frontendUrl}/reset-password/${resetToken}`;
 
-    const transporter = getTransporter();
+    const transporter =
+      getTransporter();
 
     await transporter.sendMail({
+
       from: `"UniKart Team" <${process.env.EMAIL}>`,
+
       to: user.email,
-      subject: "Reset Your UniKart Password",
+
+      subject:
+        "Reset Your UniKart Password",
 
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
@@ -456,52 +603,79 @@ export const forgotPassword = async (req, res) => {
     });
 
     return res.status(200).json({
-      message: "Reset link sent to email",
+      message:
+        "Reset link sent to email",
     });
 
   } catch (error) {
-    console.error("❌ FORGOT PASSWORD ERROR:", error);
+
+    console.error(
+      "❌ FORGOT PASSWORD ERROR:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Failed to send email. Check connection.",
+      message:
+        "Failed to send email. Check connection.",
       error: error.message,
     });
   }
 };
 
-// ==========================
-//  RESET PASSWORD
-// ==========================
-export const resetPassword = async (req, res) => {
+/* ==========================
+   RESET PASSWORD
+========================== */
+export const resetPassword = async (
+  req,
+  res
+) => {
+
   try {
+
     const { token } = req.params;
+
     const { password } = req.body;
 
-    const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpire: {
-        $gt: Date.now(),
-      },
-    });
+    const user =
+      await User.findOne({
+
+        resetPasswordToken:
+          token,
+
+        resetPasswordExpire: {
+          $gt: Date.now(),
+        },
+      });
 
     if (!user) {
+
       return res.status(400).json({
-        message: "Invalid or expired token",
+        message:
+          "Invalid or expired token",
       });
     }
 
-    user.password = await bcrypt.hash(password, 10);
+    user.password =
+      await bcrypt.hash(
+        password,
+        10
+      );
 
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
+    user.resetPasswordToken =
+      undefined;
+
+    user.resetPasswordExpire =
+      undefined;
 
     await user.save();
 
     return res.status(200).json({
-      message: "Password updated successfully",
+      message:
+        "Password updated successfully",
     });
 
   } catch (error) {
+
     return res.status(500).json({
       message: "Server error",
       error: error.message,
@@ -509,37 +683,53 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-// ==========================================
-//  ADMIN: DASHBOARD CONTROLLERS
-// ==========================================
+/* ==========================
+   ADMIN CONTROLLERS
+========================== */
 
-export const getApprovedStudents = async (req, res) => {
+export const getApprovedStudents =
+  async (req, res) => {
+
+    try {
+
+      const students =
+        await User.find({
+
+          role: "student",
+
+          isApproved: true,
+
+        }).select("-password");
+
+      return res.status(200).json({
+        success: true,
+        students,
+      });
+
+    } catch (error) {
+
+      return res.status(500).json({
+        message:
+          "Error fetching students",
+        error: error.message,
+      });
+    }
+  };
+
+export const rejectUser = async (
+  req,
+  res
+) => {
+
   try {
-    const students = await User.find({
-      role: "student",
-      isApproved: true,
-    }).select("-password");
 
-    return res.status(200).json({
-      success: true,
-      students,
-    });
-
-  } catch (error) {
-    return res.status(500).json({
-      message: "Error fetching students",
-      error: error.message,
-    });
-  }
-};
-
-export const rejectUser = async (req, res) => {
-  try {
     const { id } = req.params;
 
-    const user = await User.findByIdAndDelete(id);
+    const user =
+      await User.findByIdAndDelete(id);
 
     if (!user) {
+
       return res.status(404).json({
         message: "User not found",
       });
@@ -547,24 +737,34 @@ export const rejectUser = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "User removed successfully",
+      message:
+        "User removed successfully",
     });
 
   } catch (error) {
+
     return res.status(500).json({
-      message: "Error rejecting user",
+      message:
+        "Error rejecting user",
       error: error.message,
     });
   }
 };
 
-export const getUserById = async (req, res) => {
+export const getUserById = async (
+  req,
+  res
+) => {
+
   try {
-    const user = await User.findById(req.params.id).select(
-      "-password -otp"
-    );
+
+    const user =
+      await User.findById(
+        req.params.id
+      ).select("-password -otp");
 
     if (!user) {
+
       return res.status(404).json({
         message: "User not found",
       });
@@ -576,41 +776,65 @@ export const getUserById = async (req, res) => {
     });
 
   } catch (error) {
+
     return res.status(500).json({
-      message: "Error fetching user",
+      message:
+        "Error fetching user",
       error: error.message,
     });
   }
 };
 
-export const updateUser = async (req, res) => {
-  try {
-    const { name, email } = req.body;
+export const updateUser = async (
+  req,
+  res
+) => {
 
-    const updatedUser = await User.findByIdAndUpdate(
-      req.params.id,
-      { name, email },
-      {
-        new: true,
-        runValidators: true,
-      }
-    ).select("-password");
+  try {
+
+    const {
+      name,
+      email,
+    } = req.body;
+
+    const updatedUser =
+      await User.findByIdAndUpdate(
+
+        req.params.id,
+
+        {
+          name,
+          email,
+        },
+
+        {
+          new: true,
+          runValidators: true,
+        }
+      ).select("-password");
 
     if (!updatedUser) {
+
       return res.status(404).json({
         message: "User not found",
       });
     }
 
     return res.status(200).json({
+
       success: true,
-      message: "User updated successfully",
+
+      message:
+        "User updated successfully",
+
       user: updatedUser,
     });
 
   } catch (error) {
+
     return res.status(500).json({
-      message: "Error updating user",
+      message:
+        "Error updating user",
       error: error.message,
     });
   }

@@ -1,4 +1,3 @@
-dotenv.config();
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -17,35 +16,80 @@ import { Server } from "socket.io";
 import Chat from "./model/Chat.js";
 import Message from "./model/Message.js";
 
+/* ---------------------------
+    ENV CONFIG
+---------------------------- */
+dotenv.config();
+
+/* ---------------------------
+    EXPRESS APP
+---------------------------- */
 const app = express();
 
 /* ---------------------------
-    MIDDLEWARE (Updated for Vercel & Render)
+    CORS FIX
 ---------------------------- */
-// Aapka main CORS fix yahan hai
-app.use(cors({
-  origin: "https://unikart-frontend.vercel.app", 
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+const allowedOrigins = [
+  "https://unikart-frontend.vercel.app",
+  "http://localhost:5173",
+];
 
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no origin (mobile apps/postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS Not Allowed"));
+    },
+
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+
+    credentials: true,
+
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
+  })
+);
+
+/* ---------------------------
+    BODY PARSER
+---------------------------- */
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+app.use(
+  express.urlencoded({
+    extended: true,
+  })
+);
 
 /* ---------------------------
     STATIC FILES
 ---------------------------- */
-app.use("/uploads", express.static("uploads"));
+app.use(
+  "/uploads",
+  express.static("uploads")
+);
 
 /* ---------------------------
     ROUTES
 ---------------------------- */
 app.use("/api/user", router);
+
 app.use("/api/items", itemRoutes);
+
 app.use("/api/chat", chatRoutes);
+
 app.use("/api/notes", notesRoutes);
+
 app.use("/api/opportunities", opportunityRoutes);
+
 app.use("/api/notices", noticeRoutes);
 
 /* ---------------------------
@@ -64,22 +108,27 @@ app.get("/api/health", (req, res) => {
 const server = http.createServer(app);
 
 /* ---------------------------
-    SOCKET SETUP
+    SOCKET.IO SETUP
 ---------------------------- */
 const io = new Server(server, {
   cors: {
-    origin: "https://unikart-frontend.vercel.app", 
+    origin: allowedOrigins,
+
     methods: ["GET", "POST"],
-    credentials: true
+
+    credentials: true,
   },
 });
 
 /* ---------------------------
-    HELPER
+    HELPER FUNCTION
 ---------------------------- */
 const getConsistentChatId = (id1, id2) => {
   if (!id1 || !id2) return null;
-  return [id1.toString(), id2.toString()].sort().join("_");
+
+  return [id1.toString(), id2.toString()]
+    .sort()
+    .join("_");
 };
 
 /* ---------------------------
@@ -87,62 +136,113 @@ const getConsistentChatId = (id1, id2) => {
 ---------------------------- */
 io.on("connection", (socket) => {
 
+  console.log("✅ User Connected:", socket.id);
+
   /* JOIN CHAT ROOM */
   socket.on("join_chat", (chatId) => {
+
     if (!chatId) return;
+
     socket.join(chatId);
   });
 
   /* SEND MESSAGE */
   socket.on("send_message", async (data) => {
-    try {
-      const { sender, receiver, message, chatId } = data;
 
-      // Consistent ID generator logic
-      const finalChatId = chatId || getConsistentChatId(sender, receiver);
+    try {
+
+      const {
+        sender,
+        receiver,
+        message,
+        chatId,
+      } = data;
+
+      /* CONSISTENT CHAT ID */
+      const finalChatId =
+        chatId ||
+        getConsistentChatId(sender, receiver);
 
       /* VALIDATION */
-      if (!finalChatId || !sender || !receiver || !message) return;
+      if (
+        !finalChatId ||
+        !sender ||
+        !receiver ||
+        !message
+      ) {
+        return;
+      }
 
-      /* ENSURE CHAT EXISTS */
-      let chat = await Chat.findOne({ chatId: finalChatId });
+      /* CHECK CHAT */
+      let chat = await Chat.findOne({
+        chatId: finalChatId,
+      });
 
+      /* CREATE CHAT IF NOT EXISTS */
       if (!chat) {
+
         chat = await Chat.create({
           chatId: finalChatId,
+
           members: [sender, receiver],
+
           lastMessage: message,
         });
       }
 
-      const savedMessage = await Message.create({
-        chatId: finalChatId,
-        sender,
-        receiver,
-        text: message, 
-      });
+      /* SAVE MESSAGE */
+      const savedMessage =
+        await Message.create({
+          chatId: finalChatId,
 
-      /* UPDATE CHAT COLLECTION */
+          sender,
+
+          receiver,
+
+          text: message,
+        });
+
+      /* UPDATE CHAT */
       chat.lastMessage = message;
+
       chat.updatedAt = Date.now();
+
       await chat.save();
 
-      io.to(finalChatId).emit("receive_message", {
-        _id: savedMessage._id,
-        chatId: finalChatId,
-        sender: savedMessage.sender,
-        receiver: savedMessage.receiver,
-        text: savedMessage.text, 
-        createdAt: savedMessage.createdAt,
-      });
+      /* EMIT MESSAGE */
+      io.to(finalChatId).emit(
+        "receive_message",
+        {
+          _id: savedMessage._id,
+
+          chatId: finalChatId,
+
+          sender: savedMessage.sender,
+
+          receiver: savedMessage.receiver,
+
+          text: savedMessage.text,
+
+          createdAt:
+            savedMessage.createdAt,
+        }
+      );
 
     } catch (error) {
-      // Logic unchanged
+
+      console.log(
+        "❌ SOCKET ERROR:",
+        error.message
+      );
     }
   });
 
+  /* DISCONNECT */
   socket.on("disconnect", () => {
-    // Silent disconnect
+    console.log(
+      "❌ User Disconnected:",
+      socket.id
+    );
   });
 });
 
@@ -152,13 +252,25 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 8000;
 
 const start = async () => {
+
   try {
+
     await connectDB();
-    
+
     server.listen(PORT, () => {
-      console.log(` Server running on port: ${PORT}`);
+
+      console.log(
+        `🚀 Server running on port: ${PORT}`
+      );
     });
+
   } catch (error) {
+
+    console.log(
+      "❌ SERVER START ERROR:",
+      error.message
+    );
+
     process.exit(1);
   }
 };
