@@ -9,12 +9,22 @@ import crypto from "crypto";
 // ==========================
 const getTransporter = () => {
   return nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
 
     auth: {
       user: process.env.EMAIL,
       pass: process.env.EMAIL_PASS,
     },
+
+    tls: {
+      rejectUnauthorized: false,
+    },
+
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
   });
 };
 
@@ -500,6 +510,113 @@ export const resetPassword = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Server error",
+    });
+  }
+};
+
+// ==========================================
+//  ADMIN: DASHBOARD CONTROLLERS
+// ==========================================
+
+export const getApprovedStudents = async (req, res) => {
+  try {
+    const students = await User.find({
+      role: "student",
+      isApproved: true,
+    }).select("-password");
+
+    return res.status(200).json({
+      success: true,
+      students,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching students",
+      error: error.message,
+    });
+  }
+};
+
+export const rejectUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findByIdAndDelete(id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "User removed successfully",
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error rejecting user",
+      error: error.message,
+    });
+  }
+};
+
+export const getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select(
+      "-password -otp"
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      user,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching user",
+      error: error.message,
+    });
+  }
+};
+
+export const updateUser = async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { name, email },
+      {
+        returnDocument: "after",
+        runValidators: true,
+      }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      user: updatedUser,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error updating user",
+      error: error.message,
     });
   }
 };
