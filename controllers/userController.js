@@ -5,28 +5,22 @@ import nodemailer from "nodemailer";
 import crypto from "crypto";
 
 // ==========================
-//  HELPER: GET TRANSPORTER
+//  HELPER: GET TRANSPORTER (Optimized for Render/Cloud)
 // ==========================
 const getTransporter = () => {
   return nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // TLS ke liye false zaroori hai
-    pool: true,    // Connection pooling help karti hai cloud environments mein
+    port: 465, // Port 465 (SSL) is more reliable on cloud platforms than 587
+    secure: true, 
     auth: {
       user: process.env.EMAIL,
-      pass: process.env.EMAIL_PASS, // 16-digit App Password
+      pass: process.env.EMAIL_PASS, // Your 16-digit App Password (no spaces)
     },
-    // Extended timeouts for Render's cold starts/network lag
-    connectionTimeout: 30000, 
-    greetingTimeout: 30000,
-    socketTimeout: 40000,
+    // Adding performance & security settings
     tls: {
       rejectUnauthorized: false,
-      minVersion: 'TLSv1.2',
-      // Forced IPv4 resolve workaround
-      servername: 'smtp.gmail.com'
-    }
+    },
+    connectionTimeout: 10000, // 10 seconds timeout
   });
 };
 
@@ -55,9 +49,7 @@ export const sendOtp = async (req, res) => {
 
     const transporter = getTransporter();
 
-    // Verify connection
-    await transporter.verify();
-
+    // Directly sending mail
     await transporter.sendMail({
       from: `"UniKart Verification" <${process.env.EMAIL}>`,
       to: email,
@@ -76,10 +68,10 @@ export const sendOtp = async (req, res) => {
     return res.status(200).json({ success: true, message: "OTP sent to your email" });
 
   } catch (error) {
-    console.error("❌ SEND OTP ERROR:", error);
+    console.error("❌ SEND OTP ERROR DETAILS:", error);
     return res.status(500).json({ 
       success: false, 
-      message: "Error sending OTP. Please check your network and credentials.", 
+      message: "Server failed to send OTP. Please try again.", 
       error: error.message 
     });
   }
