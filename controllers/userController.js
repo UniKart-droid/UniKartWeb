@@ -2,19 +2,24 @@ import User from "../model/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import { Resend } from "resend";
+import nodemailer from "nodemailer"; // ✅ Resend hata ke nodemailer
 
 /* ==========================
-   HELPER: RESEND CLIENT
-========================== */
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-/* ==========================
-   HELPER: SEND EMAIL
+   HELPER: SEND EMAIL (Gmail SMTP)
 ========================== */
 const sendEmail = async ({ to, subject, html }) => {
-  await resend.emails.send({
-    from: "UniKart <onboarding@resend.dev>",
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL,
+      pass: process.env.EMAIL_PASS, // ✅ Gmail App Password
+    },
+  });
+
+  await transporter.sendMail({
+    from: `"UniKart" <${process.env.EMAIL}>`,
     to,
     subject,
     html,
@@ -88,7 +93,8 @@ export const sendOtp = async (req, res) => {
     console.error("❌ SEND OTP ERROR DETAILS:", error);
 
     let userMessage = "Server failed to send OTP. Please try again.";
-    if (error.code === "EAUTH") userMessage = "Email Authentication Failed. Check API Key.";
+    if (error.code === "EAUTH") userMessage = "Email Authentication Failed. Check App Password.";
+    if (error.code === "ETIMEDOUT") userMessage = "Connection Timeout. Try again.";
 
     return res.status(500).json({
       success: false,
